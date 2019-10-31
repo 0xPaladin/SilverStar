@@ -1,0 +1,48 @@
+/*CSS styling for Galaxy */
+#galaxy {
+  fill:none;
+  stroke: black;
+  stroke-width: 2px;
+}
+.sectors {
+  fill:none;
+  stroke-width: 1px;
+}
+.sectors path{
+  fill:grey;
+  stroke:black;
+}
+.sectors path.hive{
+  fill:limegreen;
+  opacity:0.5;
+}
+.sectors path.empire{
+  fill:darkred;
+  opacity:0.5;
+}
+.sectors path.pc{
+  fill:royalblue;
+  opacity:0.5;
+}
+.flux path{
+  fill:none;
+  stroke:orange;
+  stroke-width: 2px;
+}
+.sectors path:hover{
+  fill:blue;
+  opacity:0.5;
+}
+.stars circle {
+  fill:white;
+  opacity:0.5;
+}
+.poi circle.lair {
+  fill: red;
+}
+.poi circle.resource {
+  fill: gold;
+}
+.poi circle.ruin {
+  fill: indigo;
+}
