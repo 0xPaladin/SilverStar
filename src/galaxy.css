@@ -46,3 +46,10 @@
 .poi circle.ruin {
   fill: indigo;
 }
+.units circle {
+  fill:blue;
+}
+.units rect.foe {
+  fill:red;
+  stroke:black;
+}

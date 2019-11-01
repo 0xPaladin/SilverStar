@@ -113,6 +113,9 @@ const init = (app) => {
       if(what) this["_"+what] = data
       this.genTrouble()
     }
+    get neighbors () {
+      return [...app.Galaxy.voronoi.delaunay.neighbors(this.i)]
+    }
     get poiSVGClass () {
       if(this.colony) return "colony"
       else if(this.lair) return "lair"
@@ -131,7 +134,9 @@ const init = (app) => {
       return app.factions.byId(this._owner)
     }
     get mayBuild () {
-      return (this._owner != 0 && this.colony) || this._assets.length > 0 ? true : false
+      if (this._owner == 0) return false
+      if (this.colony || this._assets.length) return true
+      return false
     }
     get bonus () {
       let vals = [0,0,0]
@@ -145,6 +150,14 @@ const init = (app) => {
       if(this.resource) basis.push("W")
       //now count the basis 
       basis.forEach(w => vals[["M","W","S"].indexOf(w)] += 2)
+      //add for each asset 
+      this.assets.forEach(a => {
+        //it is in asset 
+        if(a.type=="a"){
+          a.data.cost.forEach((v,i)=>vals[i]+=v)
+        }
+      })
+      //
       return vals
     }
     get colony () {
@@ -167,31 +180,69 @@ const init = (app) => {
       return iw
     }
     //local assets
-    get assets () {
-      let a = this._assets.map(w => {
-        if(w[1] == "u") return DATA.units.find(u=>u.id==w[2]).name
-        else if(w[1] == "a") return DATA.siteAssets.find(u=>u.id==w[2]).name
-        else if(w[1] == "s") return DATA.supportUnits.find(u=>u.id==w[2]).name
-        return ""
+    get assets () { 
+      let lookup = {"u":"units","a":"siteAssets","s":"supportUnits"}
+      return this._assets.map(w => {
+        return {
+          raw : w,
+          type : w.w[0],
+          data : DATA[lookup[w.w[0]]].find(u=>u.id==w.w[1]),
+          get name () { return this.data.name },
+          get F () {
+            let fid = this.raw.o
+            return  fid > 0 ? app.factions.byId(fid) : null
+          },
+          //give action options
+          get act () {
+            let raw = this.raw
+            if(this.type == "a") return null
+            let base = ["Move"]
+            if(raw.o > 0 && this.data.solve) base.push("Solve Trouble")
+            return base 
+          }
+        }
       })
-      return a
+    }
+    get hasUnits () {
+      return this._assets.reduce((has,a)=> has || ["u","s"].includes(a.w[0]) && a.o != 0 ,false)
+    }
+    get hasFoes () {
+      return this._assets.reduce((has,a)=> has || a.w[0] == "u" && a.o == 0 ,false)
+    }
+    moveAsset (i,to) {
+      let a = Object.assign({},this._assets[i])
+      //remove
+      this._assets.splice(i,1)
+      //push to new 
+      app.Galaxy.sectors[to]._assets.push(a)
     }
     //moves from in work to asset 
     addAsset (i) {
-      let iw = this._inWork[i]
-      //asset - first index is the owner, -1 for general assets
-      let a = [-1].concat(iw.slice(0,2))
-      //if it is a unit set the hp 
-      if(a[1]=="u"){
-        let U = app.data.units.find(u=>u.id==a[0])
-        a.push(U.HD*8)
-      }
-      //add the faction 
-      if(a[1]!="a") a[0] == this._owner
-      //add to assets 
-      this._assets.push(a)
+      this.setAsset(this._inWork[i])
       //remove finished
       this._inWork.splice(i,1)
+    }
+    setAsset(what) {
+      //asset - first index is the owner, -1 for general assets
+      let a = {
+        o : -1,
+        w : what.slice(0,2),
+      } 
+      //if it is a unit set the hp 
+      if(a.w[0]=="u"){
+        let U = app.data.units.find(u=>u.id==a.w[1])
+        a.hp = U.HD*8
+      }
+      if(a.w[0]!="a") {
+        //add the faction 
+        a.o = this._owner
+        //add distruption
+        a.d = 0
+      }
+      //add to assets 
+      let i = this._assets.length
+      this._assets.push(a)
+      return this._assets[i]
     }
     get lair () {
       //let unit = l ? DATA.units.find(u=>u.id == l.unit) : null
@@ -223,12 +274,15 @@ const init = (app) => {
         lv : t[1]
       }
     }
-    genTrouble = (rng = chance) => {
+    genTrouble (rng = chance) {
       //check for the basis to generate trouble 
       let basis = this._colony ? ["colony"] : []
       if(this._ruin) basis.push("ruin")
       if(this._resource) basis.push("resource")
-      if(basis.length == 0) return
+      if(basis.length == 0) {
+        this._trouble = null
+        return
+      }
 
       let trouble = {
         "colony" : [`Bad Reputation`,`Barren Surroundings`,`Class Hatred`,`Contaminated Land`,`Corrupt Leadership`,`Crushed Spirits`,`Demagogue`,`Destructive Customs`,`Disunity`,`Ethnic Feuding`,`Exceptional Poverty`,`Exiled Lord`,`Mercenary Populace`,`Monsters`,`Natrual Destruction`,`Outsider Cult/Sinister Cult`,`Pervasive Hunger`,`Raiders`,`Recurrent Sickness`,`Riotous Thugs`,`Secret Society`,`Toxic Process`,`Xenophobia`],
@@ -237,9 +291,23 @@ const init = (app) => {
       }
       let base = rng.pickone(basis)
       let what = rng.pickone(trouble[base]) 
-      let lv = rng.d4()+rng.d4()
+      let lv = 2+rng.d6()
 
       this._trouble = [what,lv]
+    }
+    get save () {
+      let what = ["owner","inWork","assets","trouble"]
+      let data = {}
+      what.forEach(id => {
+        data[id] = this["_"+id] 
+      })
+      return data
+    }
+    load (data) {
+      let what = ["owner","inWork","assets","trouble"]
+      what.forEach(id => {
+        this["_"+id] = data[id] 
+      })
     }
   } 
 
@@ -322,12 +390,72 @@ const init = (app) => {
     let pid = player[0]
     sectors[pid] = new Sector(pid,rng,"colony")
     sectors[pid].owner = 1
+    //give an asset 
+    sectors[pid].setAsset(["u",4])
     sectors[pid].svgPath = voronoi.renderCell(pid)
 
     return {points,voronoi,polys,stars,flux,sectors}
   }
 
   app.Galaxy = generate()
+  app.Galaxy.drawSectors = function () {
+    let gs = d3.select("g.sectors")
+    let gf = d3.select("g.flux")
+    gs.html("")
+    gf.html("")
+    //now display sectors 
+    gs.selectAll("path").data(this.sectors).enter()
+      .append("path").attr("d", d=> d.svgPath)
+      .attr("class",d => d.svgClass)
+      .on("click", (d,i)=>{//update UI 
+        //console.log(d)
+        app.UI.main.sector = d
+        d3.select("g.move-text").html("")
+        app.UI.main.toMove = [-1,0]
+      })
+    //now display flux 
+    gf.selectAll("path").data(this.flux).enter()
+      .append("path").attr("d", d=> this.voronoi.renderCell(d))
+      .attr("class","flux")
+  }
+  app.Galaxy.drawPOI = function () {
+    let g = d3.select("g.poi")
+    g.html("")
+    //show poi  
+    g.selectAll("circle").data(this.sectors).enter().append("circle")
+      .attr("cx", d=> this.points[d.i][0])
+      .attr("cy", d=> this.points[d.i][1])
+      .attr("r", d=> {
+        return d.colony ? d.colony.r * 3 : d.poiSVGClass.length>0 ? 4 : 0 
+      }) 
+      .attr("class",d=> d.poiSVGClass)
+  }
+  app.Galaxy.drawUnits = function () {
+    let g = d3.select("g.units")
+    g.html("")
+    //show units  
+    let uS = this.sectors.filter(s => s.hasUnits)
+    g.selectAll("circle").data(uS).enter().append("circle")
+      .attr("cx", d=> this.points[d.i][0]+6)
+      .attr("cy", d=> this.points[d.i][1]-6)
+      .attr("r", 2) 
+    let uF = this.sectors.filter(s => s.hasFoes)
+    g.selectAll("rect").data(uF).enter().append("rect")
+      .attr("class","foe")
+      .attr("x", d=> this.points[d.i][0]+5)
+      .attr("y", d=> this.points[d.i][1]+5)
+      .attr("width", 4) 
+      .attr("height", 4) 
+  }
+  app.Galaxy.drawMoveText = function (ids){
+    let g = d3.select("g.move-text")
+    g.html("")
+    g.selectAll("text").data(ids).enter().append("text")
+      .attr("x", d=> this.points[d][0])
+      .attr("y", d=> this.points[d][1])
+      .html(d=>d)
+  }
+  //re draw everything
   app.Galaxy.reDraw = function() {
     const fC = 2 * Math.PI
     let iW = window.innerWidth
@@ -345,36 +473,41 @@ const init = (app) => {
     //all sectors 
     let gS = svg.append("g").attr("class", "sectors").attr("clip-path","url(#clip-circle)")
     let gF = svg.append("g").attr("class", "flux").attr("clip-path","url(#clip-circle)")
+    //stars
+    let gStars = svg.append("g").attr("class", "stars").attr("clip-path","url(#clip-circle)")
+    //poi 
+    let gC = svg.append("g").attr("class", "poi")
+    //units
+    let gU = svg.append("g").attr("class", "units")
+    //move text
+    svg.append("g").attr("class", "move-text")
 
-    //now display circle pack 
-    gS.selectAll("path").data(this.sectors).enter()
-      .append("path").attr("d", d=> d.svgPath)
-      .attr("class",d => d.svgClass)
-      .on("click", (d,i)=>{//update UI 
-        console.log(d)
-        app.UI.main.sector = d
-      })
-    //now display circle pack 
-    gF.selectAll("path").data(this.flux).enter()
-      .append("path").attr("d", d=> this.voronoi.renderCell(d))
-      .attr("class","flux")
+    this.drawSectors()    
 
     //show stars 
-    let gStars = svg.append("g").attr("class", "stars").attr("clip-path","url(#clip-circle)")
     gStars.selectAll("circle").data(this.stars).enter()
       .append("circle").attr("cx", d=> d[0]).attr("cy", d=> d[1]).attr("r", 1) 
 
-    //show poi  
-    let gC = svg.append("g").attr("class", "poi")
-    gC.selectAll("circle").data(this.sectors).enter().append("circle")
-      .attr("cx", d=> this.points[d.i][0])
-      .attr("cy", d=> this.points[d.i][1])
-      .attr("r", d=> {
-        return d.colony ? d.colony.r * 3 : d.poiSVGClass.length>0 ? 3 : 0 
-      }) 
-      .attr("class",d=> d.poiSVGClass)
+    this.drawPOI()
+    this.drawUnits()
 
     resize()
+  }
+  //save state
+  app.Galaxy.save = function () {
+    //poll sectors
+    let data = this.sectors.map(s => s.save)
+    //set db 
+    let id = app.games.current
+    app.DB.setItem(id+".sectors",data)
+  }
+  app.Galaxy.load = function () {
+    let id = app.games.current
+    app.DB.getItem(id+".sectors").then(val=> {
+      val = val || []
+      val.forEach((v,i)=>this.sectors[i].load(v))
+      this.reDraw()
+    })
   }
 
 }

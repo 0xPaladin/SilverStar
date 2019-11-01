@@ -22,7 +22,8 @@ const factionManager = (app) => {
     },
     stats(i) {
       let vals = [0,0,0]
-      this.sectorsByOwner(i).forEach(s => {
+      let S = this.sectorsByOwner(i)
+      S.forEach(s => {
         //acount for sector bonus 
         s.bonus.forEach((v,j) => vals[j] += v)
       })

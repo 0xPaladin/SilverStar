@@ -60,25 +60,26 @@ const UNITS = [
 ]
 
 const SUPPORTUNITS = [
-  {id:1,name:'Assassin',cost:'0,2,0',extras:'Assassin'},
-{id:2,name:'Bodyguard',cost:'1,1,0',extras:'Protector'},
-{id:3,name:'Guardian Shield',cost:'0,2,0',extras:'Countermagic,Sage'},
-{id:4,name:'Harriers',cost:'2,1,0',extras:'Chase'},
-{id:5,name:'Healer',cost:'1,1,0',extras:'Healing'},
-{id:6,name:'Inspector',cost:'0,0,2',extras:'Inspector'},
-{id:7,name:'Inspector General',cost:'0,2,2',extras:'Inspector+2'},
-{id:8,name:'Developer',cost:'0,2,0',extras:'AntiPoverty'},
-{id:9,name:'Philanthropist',cost:'0,3,1',extras:'AntiPoverty+2'},
-{id:10,name:'Social Worker',cost:'0,0,2',extras:'SocialWork'},
-{id:11,name:'Empath',cost:'0,1,3',extras:'SocialWork+2'},
-{id:12,name:'Teacher',cost:'0,2,0',extras:'Teacher'},
-{id:13,name:'Expert Teacher',cost:'0,2,2',extras:'Teacher+2'},
-{id:14,name:'Sapper Crew',cost:'2,0,0',extras:'Wallcrusher'},
-{id:15,name:'Scout Team',cost:'1,0,0',extras:'Keen Senses'},
-{id:16,name:'Veteran Sergeant',cost:'1,0,0',extras:'Rally'},
-{id:17,name:'Guardian Sword',cost:'1,2,1',extras:'War Magic,Sage'},
-{id:18,name:'Hive Node',cost:'0,0,1',extras:'Berserk'},
-{id:19,name:'Myr Nightlord',cost:'1,2,1',extras:'War Magic,Tamer,Sage'},
+{id:1,name:'Assassin',cost:'0,2,0',solve:'',extras:'Assassin'},
+{id:2,name:'Bodyguard',cost:'1,1,0',solve:'',extras:'Protector'},
+{id:3,name:'Police',cost:'1,1,0',solve:'Disorder,0',extras:''},
+{id:4,name:'Guardian Shield',cost:'0,2,0',solve:'Disorder,0',extras:'Countermagic'},
+{id:5,name:'Harriers',cost:'2,1,0',solve:'',extras:'Chase'},
+{id:6,name:'Healer',cost:'1,1,0',solve:'',extras:'Healing'},
+{id:7,name:'Inspector',cost:'0,0,2',solve:'Corruption,0',extras:''},
+{id:8,name:'Inspector General',cost:'0,2,2',solve:'Corruption,2',extras:''},
+{id:9,name:'Developer',cost:'0,2,0',solve:'Poverty,0',extras:''},
+{id:10,name:'Philanthropist',cost:'0,3,1',solve:'Poverty,2',extras:''},
+{id:11,name:'Social Worker',cost:'0,0,2',solve:'Despair,0',extras:''},
+{id:12,name:'Empath',cost:'0,1,3',solve:'Despair,2',extras:''},
+{id:13,name:'Teacher',cost:'0,2,0',solve:'Ignorance,0',extras:''},
+{id:14,name:'Expert Teacher',cost:'0,2,2',solve:'Ignorance,2',extras:''},
+{id:15,name:'Sapper Crew',cost:'2,0,0',solve:'',extras:'Wallcrusher'},
+{id:16,name:'Scout Team',cost:'1,0,0',solve:'',extras:'Keen Senses'},
+{id:17,name:'Veteran Sergeant',cost:'1,0,0',solve:'',extras:'Rally'},
+{id:18,name:'Guardian Sword',cost:'1,2,1',solve:'Disorder,0',extras:'War Magic'},
+{id:19,name:'Hive Node',cost:'0,0,1',solve:'',extras:'Berserk'},
+{id:20,name:'Myr Nightlord',cost:'1,2,1',solve:'Ignorance,0',extras:'War Magic,Tamer'},
 ]
 
 const LAIRS = [
@@ -98,46 +99,54 @@ const LAIRS = [
 
 let TROUBLESAVES = {
   "Bad Reputation": `Corruption`,
-  "Barren Surroundings": `Destruction`,
+  "Barren Surroundings": `Poverty`,
   "Class Hatred": `Despair`,
-  "Conquering Heirs": `Assault`,
-  "Contaminated Land": `Contagion`,
+  "Conquering Heirs": `Uprising`,
+  "Contaminated Land": `Poverty`,
   "Corrupt Leadership": `Corruption`,
   "Covetous Polity": `Disorder`,
   "Crushed Spirits": `Despair`,
-  "Dark Wizards": `Assault`,
+  "Dark Wizards": `Uprising`,
   "Demagogue": `Despair`,
   "Destructive Customs": `Ignorance`,
-  "Disputed Possession": `Assault`,
+  "Disputed Possession": `Disorder`,
   "Disunity": `Despair`,
   "Ethnic Feuding": `Despair`,
   "Exceptional Poverty": `Poverty`,
-  "Exiled Lord": `Assault`,
+  "Exiled Lord": `Uprising`,
   "Failed Settlement": `Poverty`,
-  "Harsh Conditions": `Destruction`,
+  "Harsh Conditions": `Poverty`,
   "Hazardous Resource": `Ignorance`,
-  "Inaccessible": `Destruction`,
-  "Infested": `Assault`,
+  "Inaccessible": `Poverty`,
+  "Infested": `Uprising`,
   "Mercenary Populace": `Corruption`,
   "Monsters": `Disorder`,
-  "Murderous Heirs": `Assault`,
-  "Natrual Destruction": `Destruction`,
+  "Murderous Heirs": `Disorder`,
+  "Natrual Poverty": `Poverty`,
   "No Workers": `Poverty`,
   "Outsider Cult/Sinister Cult": `Corruption`,
   "Pervasive Hunger": `Poverty`,
-  "Raiders": `Assault`,
+  "Raiders": `Uprising`,
   "Recalcitrant Locals": `Disorder`,
-  "Recurrent Sickness": `Contagion`,
+  "Recurrent Sickness": `Poverty`,
   "Ancient Cosmic Defenses": `Ignorance`,
   "Riotous Thugs": `Disorder`,
   "Sealed Evil": `Disorder`,
   "Secret Society": `Corruption`,
-  "Severe Damage": `Destruction`,
+  "Severe Damage": `Poverty`,
   "Taboo Land": `Ignorance`,
   "Toxic Process": `Ignorance`,
-  "Undeveloped": `Destruction`,
+  "Undeveloped": `Poverty`,
   "Wasted Production": `Ignorance`,
   "Xenophobia": `Disorder`,
+}
+const SAVESTAT = {
+  "Disorder" : 0,
+  "Uprising" : 0,
+  "Poverty" : 1,
+  "Ignorance" : 1,
+  "Despair" : 2,
+  "Corruption" : 2
 }
 
 let data = {
@@ -154,12 +163,21 @@ let data = {
     u.morale = Number(stats[3])
     u.cost = u.cost.split(",").map(Number)
     u.extras = u.extras.split(",")
+    u.solve = [0,"Uprising",u.HD]
     return u 
   }),
   unitNames : UNITS.map(u=>u.name),
   supportUnits : SUPPORTUNITS.map(u=> {
     u.cost = u.cost.split(",").map(Number)
     u.extras = u.extras.split(",")
+    
+    if(u.solve.length>0) {
+      u.solve = u.solve.split(",") 
+      u.solve[1] = Number(u.solve[1])
+      u.solve.unshift(SAVESTAT[u.solve[0]])
+    }
+    else delete u.solve
+
     return u
   }),
   supportNames : SUPPORTUNITS.map(u=>u.name),
@@ -171,7 +189,8 @@ let data = {
     if(ui > -1) return SUPPORTUNITS[ui]
     return null
   },
-  troubleSaves : TROUBLESAVES
+  troubleSaves : TROUBLESAVES,
+  saveStat : SAVESTAT
 }
 
 export {data}

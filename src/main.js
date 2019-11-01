@@ -17,11 +17,59 @@ const app = {
   DB,
   data : {},
   UI: {},
+  games : {},
   save () {
+    DB.setItem('games',this.games)
+    this.Galaxy.save()
+  },
+  load() {
+    this.Galaxy.load()
+    startTick()
+  },
+  reset () {
+    let id = this.games.current
+    let i = this.games.all.indexOf(id)
+    this.games.all.splice(i,1)
+    this.games.current = null 
+    DB.setItem('games',this.games)
+    DB.removeItem(id+".sectors").then(()=>{
+      window.location = ""
+    })
   }
 }
 init(app)
 factionManager(app)
 UI(app)
 
-setInterval(()=>app.save(), 5000)
+//tick 
+const startTick = () => {
+  setInterval(()=>app.save(), 5000)
+}
+
+//games 
+DB.getItem('games').then(val=> {
+  //create
+  if(!val) {
+    let id = chance.hash()
+    app.games.current = id 
+    app.games.all = [id]
+    startTick()
+  }
+  //load the game 
+  else {
+    app.games = val 
+    if(!app.games.current) {
+      //no current game - try to load 
+      if(app.games.all.length>0) {
+        app.games.current = app.games.all[0]
+      }
+      else {
+        let id = chance.hash()
+        app.games.current = id 
+        app.games.all = [id]
+      }
+    }
+    app.load()
+  }
+})
+
