@@ -53,3 +53,13 @@
   fill:red;
   stroke:black;
 }
+
+.darkred {
+  background-color:darkred;
+}
+.limegreen {
+  background-color:limegreen;
+}
+.royalblue {
+  background-color:royalblue;
+}

@@ -31,7 +31,7 @@
       <div class="overlay p-1 border" style="top:0;">
         <div class="d-flex justify-content-around">
           <div class="btn-group" role="group" v-for="F in factions" v-if="fid==F.id && F.name" v-cloak>
-            <button type="button" class="btn btn-light font-weight-bold">{{F.name}} ({{stats.b.join('/')}})</button>
+            <button type="button" class="btn btn-light font-weight-bold">{{F.name}} ({{F.stats.join('/')}}) C:{{F.cred}}</button>
             <div class="btn-group" role="group">
               <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown"></button>
               <div class="dropdown-menu">
@@ -51,45 +51,66 @@
             </div>
           </h4>
           <div class="mx-2">
-            <div class="input-group" v-if="sector.mayBuild">
-              <select class="custom-select" v-model="toBuild">
-                <option v-for="b in allBuild" :value="b.d">{{b.text}}</option>
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">Faction</span>
+              </div>
+              <select class="custom-select" v-model="bid" @change="toBuild=null">
+                <option v-for="(f,i) in factions" :value="i" v-if="f.id!=0">{{f.name}}</option>
               </select>
-              <div class="input-group-append">
+              <select class="custom-select" v-model="toBuild" v-if="sector.mayBuild[bid].length>0">
+                <option v-for="b in sector.mayBuild[bid]" :value="b.id">{{b.text}}</option>
+              </select>
+              <input class="form-control" type="number" v-model="bhp" v-if="toBuild==0">
+              <div class="input-group-append" v-if="toBuild==0">
+                <span class="input-group-text">HP</span>
+              </div>
+              <div class="input-group-append" v-if="sector.mayBuild[bid].length>0">
                 <button class="btn btn-success" type="button" @click="build()">Build</button>
               </div>
             </div>
             <div v-if="sector.trouble">
               <strong>Trouble: </strong>
-              <span>{{sector.trouble.text}} ({{sector.trouble.save}}) - Level {{sector.trouble.lv}}</span>
+              <span>{{sector.trouble.text}} ({{sector.trouble.save}},{{sector.trouble.lv}})</span>
             </div>
             <div v-if="sector.colony">
               <div>
-                <strong>Colony (R{{sector.colony.r}}): </strong>
+                <strong>Colony, {{sector.colony.r}}: </strong>
                 <span>{{sector.colony.text}}</span>
               </div>
             </div>
-            <div v-if="sector.assets.length>0" class="d-flex align-items-center flex-wrap">
-              <strong>Assets: </strong>
-              <div v-for="(a,i) in sector.assets" class="d-flex">
-                <div class="btn-group btn-group-sm" role="group">
-                  <button type="button" class="btn btn-light">{{a.name}}</button>
-                  <div class="btn-group btn-group-sm" role="group" v-if="a.act" v-cloak>
-                    <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown"></button>
-                    <div class="dropdown-menu">
-                      <a class="dropdown-item" href="#" v-for="act in a.act" @click="action(i,act)">{{act}}</a>
+            <div v-if="sector.assets.length>0">
+              <div class="d-flex align-items-center flex-wrap">
+                <strong>Assets: </strong>
+                <div v-for="(a,i) in sector.assets" class="d-flex">
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-light" @click="aid=i">
+                      <div class="circle circle-sm" :class="a.F.color"></div>
+                      {{a.name}}
+                    </button>
+                    <div class="btn-group btn-group-sm" role="group" v-if="a.act.length>0" v-cloak>
+                      <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown"></button>
+                      <div class="dropdown-menu">
+                        <a class="dropdown-item" href="#" v-for="act in a.act" @click="action(i,act)">{{act}}</a>
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-warning" @click="sector._assets.splice(i,1),reDrawUnits()">&#10008;</button>
+                  </div>
+                  <div class="input-group" v-if="toMove[0]==i">
+                    <select class="custom-select" v-model="toMove[1]">
+                      <option v-for="n in sector.neighbors" :value="n">{{n}}</option>
+                    </select>
+                    <div class="input-group-append">
+                      <button class="btn btn-outline-success" type="button" @click="move()">Go</button>
                     </div>
                   </div>
-                  <button type="button" class="btn btn-warning" @click="sector._assets.splice(i,1),reDrawUnits()">&#10008;</button>
                 </div>
-                <div class="input-group" v-if="toMove[0]==i">
-                  <select class="custom-select" v-model="toMove[1]">
-                    <option v-for="n in sector.neighbors" :value="n">{{n}}</option>
-                  </select>
-                  <div class="input-group-append">
-                    <button class="btn btn-outline-success" type="button" @click="move()">Go</button>
-                  </div>
-                </div>
+              </div>
+              <div class="pl-2" v-if="asset">
+                <strong>{{asset.name}},</strong>
+                <span v-if="asset.data.atk.length>0">Atk: {{asset.data.atk[0]}}v{{asset.data.atk[1]}} {{asset.data.atk[2]}}</span>
+                <span v-if="asset.data.counter.length>0">Counter: {{asset.data.counter}}</span>
+                <span>Saves: {{asset.data.saves.join(', ')}},</span>
               </div>
             </div>
             <div v-if="sector.inWork.length>0">
@@ -106,8 +127,9 @@
               <span>{{sector.ruin.text}}</span>
             </div>
             <div v-if="sector.lair" class="d-flex justify-content-between align-items-center">
-              <div><strong>Lair: </strong>
-              <span>{{sector.lair.name}}</span>
+              <div>
+                <strong>Lair: </strong>
+                <span>{{sector.lair.name}}</span>
               </div>
               <button type="button" class="btn btn-warning" @click="lairCheck()">Lair Check</button>
             </div>

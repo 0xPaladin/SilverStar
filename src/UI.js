@@ -9,9 +9,13 @@ const UI = (app)=> {
     data: {
       now : 0,
       fid : 1,
+      bid : 0, //base id
+      base : [-1,0],
       sector : null,
       toBuild : null,
+      bhp : 0 , //base hp 
       R : [0,false],
+      aid : -1,
       toMove : [-1,0]
     },
     mounted() {
@@ -21,44 +25,29 @@ const UI = (app)=> {
     },
     computed: {
       factions () { return app.factions.all },
-      stats () { return app.factions.stats(this.fid) },
-      allBuild () {
-        return app.factions.availableAssets(this.sector._owner)
-      }
+      stats () { return this.factions[this.fid].stats },
+      asset () { return this.aid>-1 ? this.sector.assets[this.aid] : null }
     },
     methods: {
-      workRoll(i,j) {
-        let F = this.sector.owner
-        let tb = this.sector._inWork[i]
-        //do the work 
-        let v = 12+tb[j]
-        let R = chance.d20()+F.stats.b[j-2]
-        this.R = [R,R>=v]
-        //check if success
-        if(R>=v) {
-          tb[j] = "c" 
-          //last one 
-          if(j==4) {
-            this.sector.addAsset(i)
-            app.Galaxy.drawUnits()
-          }
+      //expand base 
+      expand(i,j){
+        if(j == 0) {this.base = this.sector.bases[this.bid].slice() }
+        else {
+          let B = this.sector._bases
+          let base = B.has(this.bid) ? B.get(this.bid) : B.set(this.bid,[0,0]).get(this.bid)
+          base[i] += j         
+          this.base = this.sector.bases[this.bid].slice()
         }
-        //reduce if fail
-        else tb[j]--
       },
       build() {
-        let w = this.sector._inWork
-        let i = w.length
-        //push to work 
-        w.push(this.toBuild.slice())
-        //do the work 
-        this.workRoll(i,2)
-      },
-      work(i) {
-        let tb = this.sector._inWork[i]
-        let j = tb[2] != "c" ? 2 : tb[3] != "c" ? 3 : 4 
-        //do the work 
-        this.workRoll(i,j)
+        let fid = this.bid 
+        let tb = this.toBuild
+        //build it 
+        let a = this.sector.addAsset(fid,tb)
+        if(tb == 0){
+          a.hp = a.mhp = Number(this.bhp)
+        }
+        this.toBuild = null
       },
       setOwner(id) {
         this.sector.owner = id
@@ -69,7 +58,7 @@ const UI = (app)=> {
           this.toMove = [i,0]
           app.Galaxy.drawMoveText(this.sector.neighbors)
         }
-        else if(act == "Solve Trouble")this.solveTrouble(i)
+        //else if(act == "Solve Trouble")this.solveTrouble(i)
       },
       solveTrouble (i) {
         let u = this.sector.assets[i]

@@ -89,6 +89,7 @@ const init = (app) => {
       this._owner = 0
       this._inWork = []
       this._assets = []
+      this._bases = new Map()
 
       let data = null
       if(what == "colony") {
@@ -134,31 +135,12 @@ const init = (app) => {
       return app.factions.byId(this._owner)
     }
     get mayBuild () {
-      if (this._owner == 0) return false
-      if (this.colony || this._assets.length) return true
-      return false
-    }
-    get bonus () {
-      let vals = [0,0,0]
-      let basis = []
-      if (this.colony) {
-        //colony provides wealth and social 
-        basis.push(...["W","S"],...this.colony.bonus)
-        if(this.colony.r == 2) basis.push(...["W","S"])
-      }
-      if(this.ruin) basis.push(...this.ruin.bonus)
-      if(this.resource) basis.push("W")
-      //now count the basis 
-      basis.forEach(w => vals[["M","W","S"].indexOf(w)] += 2)
-      //add for each asset 
-      this.assets.forEach(a => {
-        //it is in asset 
-        if(a.type=="a"){
-          a.data.cost.forEach((v,i)=>vals[i]+=v)
-        }
+      return app.factions.all.map(F=> {
+        let assets = this._assets.filter(a=>a.o == F.id)
+        let base = assets.filter(a=>a.id==0)        
+        let buildBase = assets.length > 0 ? [{id:0,text:"Base"}] : []
+        return F.id == 0 ? [] : base.length>0 ? F.availableAssets : buildBase
       })
-      //
-      return vals
     }
     get colony () {
       if(!this._colony) return null
@@ -179,35 +161,47 @@ const init = (app) => {
       })
       return iw
     }
+    //bases 
+    get bases () {
+      let B = this._bases
+      return app.factions.all.map(F => {
+        return this._bases.has(F.id) ? this._bases.get(F.id) : [-1,0]
+      })
+    }
     //local assets
     get assets () { 
-      let lookup = {"u":"units","a":"siteAssets","s":"supportUnits"}
-      return this._assets.map(w => {
+      //active factions 
+      let actives = this._assets.reduce((all,a)=>{
+        if(!all.includes(a.o)) all.push(a.o)
+        return all 
+      },[])
+      //return the asset  
+      return this._assets.map(a => {
+        let _a = DATA.assets.find(_a=>_a.id==a.id)
         return {
-          raw : w,
-          type : w.w[0],
-          data : DATA[lookup[w.w[0]]].find(u=>u.id==w.w[1]),
-          get name () { return this.data.name },
+          raw : a,
+          data : _a,
+          name : _a.name,
           get F () {
             let fid = this.raw.o
             return  fid > 0 ? app.factions.byId(fid) : null
           },
           //give action options
           get act () {
-            let raw = this.raw
-            if(this.type == "a") return null
-            let base = ["Move"]
-            if(raw.o > 0 && this.data.solve) base.push("Solve Trouble")
+            let D = this.data
+            let base = D.id == 0 ? [] : ["Move"]
+            if(D.saves.length >0) base.push("Solve Trouble")
+            if(D.atk.length >0 && actives.length >1) base.push("Attack")
             return base 
           }
         }
       })
     }
     get hasUnits () {
-      return this._assets.reduce((has,a)=> has || ["u","s"].includes(a.w[0]) && a.o != 0 ,false)
+      return this._assets.reduce((has,a)=> has || a.o != 0 ,false)
     }
     get hasFoes () {
-      return this._assets.reduce((has,a)=> has || a.w[0] == "u" && a.o == 0 ,false)
+      return this._assets.reduce((has,a)=> has || a.o == 0 ,false)
     }
     moveAsset (i,to) {
       let a = Object.assign({},this._assets[i])
@@ -216,29 +210,20 @@ const init = (app) => {
       //push to new 
       app.Galaxy.sectors[to]._assets.push(a)
     }
-    //moves from in work to asset 
-    addAsset (i) {
-      this.setAsset(this._inWork[i])
-      //remove finished
-      this._inWork.splice(i,1)
-    }
-    setAsset(what) {
-      //asset - first index is the owner, -1 for general assets
+    addAsset(fid,id) {
+      let A = app.data.assets.find(a=>a.id==id)
+      //check for base 
+      if(id==0) {
+        let base = this._assets.find(a => a.id==0 && a.o==fid)
+        if(base) return base 
+      }
+      //asset
       let a = {
-        o : -1,
-        w : what.slice(0,2),
+        id,
+        o : fid,
+        hp : A.hp, 
+        d: 0 //disorder
       } 
-      //if it is a unit set the hp 
-      if(a.w[0]=="u"){
-        let U = app.data.units.find(u=>u.id==a.w[1])
-        a.hp = U.HD*8
-      }
-      if(a.w[0]!="a") {
-        //add the faction 
-        a.o = this._owner
-        //add distruption
-        a.d = 0
-      }
       //add to assets 
       let i = this._assets.length
       this._assets.push(a)
@@ -391,7 +376,8 @@ const init = (app) => {
     sectors[pid] = new Sector(pid,rng,"colony")
     sectors[pid].owner = 1
     //give an asset 
-    sectors[pid].setAsset(["u",4])
+    sectors[pid].addAsset(1,3)
+    sectors[pid].addAsset(1,49)
     sectors[pid].svgPath = voronoi.renderCell(pid)
 
     return {points,voronoi,polys,stars,flux,sectors}
