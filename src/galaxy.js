@@ -84,18 +84,18 @@ const init = (app) => {
   Object.assign(app.data,DATA)
 
   class Sector {
-    constructor (i,rng,what) {
+    constructor (i,what) {
+      let rng = new Chance("SilverSector-"+i)
       this.i = i
       this._owner = 0
       this._inWork = []
       this._assets = []
-      this._bases = new Map()
 
       let data = null
       if(what == "colony") {
         let a = d3.range(COLONY.origin.length).map(i=>i)
         let b = d3.range(COLONY.activity.length).map(i=>i)
-        data = {type:[rng.pickone(a),rng.pickone(b)],r:1}
+        data = 1
       }
       else if(what == "ruin") {
         let a = d3.range(RUIN.nature.length).map(i=>i)
@@ -112,6 +112,9 @@ const init = (app) => {
       }
 
       if(what) this["_"+what] = data
+      //colony improvements
+      this._ci = rng.shuffle([0,0,0,0,0,1,1,1,1,1,2,2,2,2,2]).slice(0,10)
+
       this.genTrouble()
     }
     get neighbors () {
@@ -144,12 +147,19 @@ const init = (app) => {
     }
     get colony () {
       if(!this._colony) return null
-      let t = this._colony.type
+      let ci = this._ci.slice(0,this._colony)
+      let b = ci.reduce((r,v)=> {
+        r[v]++
+        return r 
+      },[0,0,0])
+      let d = ["","1d4","1d6","1d8","1d10","1d12"]
+      let stat = this._trouble ? b[this.trouble.stat] : 0
+      let save = stat > 0 ? d[stat] : null
+
       return {
-        r : this._colony.r,
-        type : t,
-        text : COLONY.origin[t[0]]+", "+COLONY.activity[t[1]],
-        bonus : [COLONY.originBonus[t[0]],COLONY.activityBonus[t[1]]]
+        r : this._colony,
+        text : b.join("/"),
+        save
       }
     }
     get inWork () {
@@ -161,38 +171,42 @@ const init = (app) => {
       })
       return iw
     }
-    //bases 
-    get bases () {
-      let B = this._bases
-      return app.factions.all.map(F => {
-        return this._bases.has(F.id) ? this._bases.get(F.id) : [-1,0]
-      })
-    }
     //local assets
     get assets () { 
-      //active factions 
-      let actives = this._assets.reduce((all,a)=>{
-        if(!all.includes(a.o)) all.push(a.o)
-        return all 
-      },[])
+      let T = this._trouble
       //return the asset  
-      return this._assets.map(a => {
+      return this._assets.map((a,i) => {
+        //foes 
+        let foes = this._assets.reduce((all,_a,i) => {
+          if(_a.o==a.o) return all 
+          all.push([i,DATA.assets.find(A=>_a.id==A.id).name]) 
+          return all 
+        },[])
+        //data 
         let _a = DATA.assets.find(_a=>_a.id==a.id)
         return {
-          raw : a,
+          raw : a ,
+          get mhp () {return this.raw.mhp || this.data.hp },
+          get hp () {return this.raw.hp }, 
+          set hp (hp) { this.raw.hp = hp },
           data : _a,
           name : _a.name,
           get F () {
             let fid = this.raw.o
-            return  fid > 0 ? app.factions.byId(fid) : null
+            return  app.factions.byId(fid)
+          },
+          get mayMove() {
+            return _a.id != 0
+          },
+          get mayAttack() {
+            return _a.atk.length >0 ? foes : []  
+          },
+          get maySave() {
+            return T && _a.saves.map(s=>s[0]).includes(T[0])
           },
           //give action options
           get act () {
-            let D = this.data
-            let base = D.id == 0 ? [] : ["Move"]
-            if(D.saves.length >0) base.push("Solve Trouble")
-            if(D.atk.length >0 && actives.length >1) base.push("Attack")
-            return base 
+            return []
           }
         }
       })
@@ -253,10 +267,13 @@ const init = (app) => {
     get trouble () {
       if(!this._trouble) return null
       let t = this._trouble
+      let save = DATA.troubleSaves[t[0]]
       return {
+        t,
         text : t[0],
-        save : DATA.troubleSaves[t[0]],
-        lv : t[1]
+        save,
+        stat : DATA.saveStat[save],
+        get lv () {return this.t[1]}
       }
     }
     genTrouble (rng = chance) {
@@ -338,13 +355,14 @@ const init = (app) => {
       let tag = ti > -1 ? what[ti] : ""
       //set up object
       if(tag == "c2") {
-        s = new Sector(i,rng,"colony")
-        s._colony.r = 2
+        s = new Sector(i,"colony")
+        s._colony = rng.pickone([3,4])
       }
       else if(tag == "c1") {
-        s = new Sector(i,rng,"colony")
+        s = new Sector(i,"colony")
+        s._colony = rng.pickone([1,2])
       }
-      else if(tag.length>0) s = new Sector(i,rng,tag)
+      else if(tag.length>0) s = new Sector(i,tag)
       else s = new Sector(i)
       //set path 
       s.svgPath = voronoi.renderCell(i)
@@ -355,30 +373,38 @@ const init = (app) => {
     let hiveSites = ["colony","colony","colony","resource"]
     hiveSites.forEach((w,i)=> {
       let id = hive[i]
-      let s = sectors[id] = new Sector(id,rng,w)
+      let s = sectors[id] = new Sector(id,w)
       s.owner = 3
+      //add base to each 
+      let a = s.addAsset(3,0)
+      a.hp = a.mhp = 5
       s.svgPath = voronoi.renderCell(id)
     })
     //first is r 2 colony
-    sectors[hive[0]]._colony.r = 2
+    sectors[hive[0]]._colony = rng.pickone([3,4])
     //add empire sites 
     let empireSites = ["colony","colony","resource"]
     empireSites.forEach((w,i)=> {
       let id = empire[i]
-      let s = sectors[id] = new Sector(id,rng,w)
+      let s = sectors[id] = new Sector(id,w)
       s.owner = 2
+      //add base to each 
+      let a = s.addAsset(2,0)
+      a.hp = a.mhp = 5
       s.svgPath = voronoi.renderCell(id)
     })
     //first is r 2 colony
-    sectors[empire[0]]._colony.r = 2
+    sectors[empire[0]]._colony = rng.pickone([3,4])
     //add player site
     let pid = player[0]
-    sectors[pid] = new Sector(pid,rng,"colony")
-    sectors[pid].owner = 1
-    //give an asset 
-    sectors[pid].addAsset(1,3)
-    sectors[pid].addAsset(1,49)
-    sectors[pid].svgPath = voronoi.renderCell(pid)
+    let ps = sectors[pid] = new Sector(pid,"colony")
+    ps.owner = 1
+    //give assets  
+    let a = ps.addAsset(1,0)
+    a.hp = a.mhp = 5
+    ps.addAsset(1,3)
+    ps.addAsset(1,49)
+    ps.svgPath = voronoi.renderCell(pid)
 
     return {points,voronoi,polys,stars,flux,sectors}
   }
@@ -412,7 +438,7 @@ const init = (app) => {
       .attr("cx", d=> this.points[d.i][0])
       .attr("cy", d=> this.points[d.i][1])
       .attr("r", d=> {
-        return d.colony ? d.colony.r * 3 : d.poiSVGClass.length>0 ? 4 : 0 
+        return d.colony ? d.colony.r : d.poiSVGClass.length>0 ? 4 : 0 
       }) 
       .attr("class",d=> d.poiSVGClass)
   }

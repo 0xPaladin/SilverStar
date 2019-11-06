@@ -31,7 +31,8 @@
       <div class="overlay p-1 border" style="top:0;">
         <div class="d-flex justify-content-around">
           <div class="btn-group" role="group" v-for="F in factions" v-if="fid==F.id && F.name" v-cloak>
-            <button type="button" class="btn btn-light font-weight-bold">{{F.name}} ({{F.stats.join('/')}}) C:{{F.cred}}</button>
+            <button type="button" class="btn btn-light font-weight-bold">{{F.name}} ({{F.stats.join('/')}})</button>
+            <button type="button" class="btn btn-light font-weight-bold">&#8354;{{F.cred}}</button>
             <div class="btn-group" role="group">
               <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown"></button>
               <div class="dropdown-menu">
@@ -69,56 +70,71 @@
                 <button class="btn btn-success" type="button" @click="build()">Build</button>
               </div>
             </div>
-            <div v-if="sector.trouble">
-              <strong>Trouble: </strong>
-              <span>{{sector.trouble.text}} ({{sector.trouble.save}},{{sector.trouble.lv}})</span>
+            <div v-if="sector.trouble" class="border d-flex justify-content-between align-items-center">
+              <div>
+                <strong>Trouble: </strong>
+                <span>{{sector.trouble.text}} ({{sector.trouble.save}},{{sector.trouble.lv}})</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-success" v-if="sector.colony && sector.colony.save" @click="colonyOvercome()">Overcome Trouble {{sector.colony.save}}</button>
             </div>
             <div v-if="sector.colony">
-              <div>
-                <strong>Colony, {{sector.colony.r}}: </strong>
-                <span>{{sector.colony.text}}</span>
-              </div>
+              <strong>Colony {{sector.colony.r}} ({{sector.colony.text}})</strong>
             </div>
-            <div v-if="sector.assets.length>0">
-              <div class="d-flex align-items-center flex-wrap">
-                <strong>Assets: </strong>
-                <div v-for="(a,i) in sector.assets" class="d-flex">
-                  <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-light" @click="aid=i">
-                      <div class="circle circle-sm" :class="a.F.color"></div>
-                      {{a.name}}
-                    </button>
-                    <div class="btn-group btn-group-sm" role="group" v-if="a.act.length>0" v-cloak>
-                      <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown"></button>
-                      <div class="dropdown-menu">
-                        <a class="dropdown-item" href="#" v-for="act in a.act" @click="action(i,act)">{{act}}</a>
-                      </div>
-                    </div>
-                    <button type="button" class="btn btn-warning" @click="sector._assets.splice(i,1),reDrawUnits()">&#10008;</button>
-                  </div>
-                  <div class="input-group" v-if="toMove[0]==i">
-                    <select class="custom-select" v-model="toMove[1]">
-                      <option v-for="n in sector.neighbors" :value="n">{{n}}</option>
-                    </select>
-                    <div class="input-group-append">
-                      <button class="btn btn-outline-success" type="button" @click="move()">Go</button>
-                    </div>
+            <div class="border" v-if="sector.assets.length>0">
+              <strong>Assets: </strong>
+              <div v-for="(a,i) in sector.assets" class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-light" @click="aid=i">
+                  <div class="circle circle-sm" :class="a.F.color"></div>
+                  <span>{{a.name}}</span>
+                </button>
+                <div class="btn-group btn-group-sm" role="group" v-if="a.act.length>0" v-cloak>
+                  <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown"></button>
+                  <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" v-for="act in a.act" @click="action(i,act)">{{act}}</a>
                   </div>
                 </div>
+                <button type="button" class="btn btn-warning" @click="sector._assets.splice(i,1),reDrawUnits()">&#10008;</button>
               </div>
               <div class="pl-2" v-if="asset">
-                <strong>{{asset.name}},</strong>
-                <span v-if="asset.data.atk.length>0">Atk: {{asset.data.atk[0]}}v{{asset.data.atk[1]}} {{asset.data.atk[2]}}</span>
-                <span v-if="asset.data.counter.length>0">Counter: {{asset.data.counter}}</span>
-                <span>Saves: {{asset.data.saves.join(', ')}},</span>
-              </div>
-            </div>
-            <div v-if="sector.inWork.length>0">
-              <div>
-                <strong>In Work: </strong>
-                <div class="btn-group btn-group-sm" role="group" v-for="(iw,i) in sector.inWork">
-                  <button type="button" class="btn btn-light">{{iw}}</button>
-                  <button type="button" class="btn btn-success" @click="work(i)">work</button>
+                <strong>{{asset.name}}</strong>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button type="button" class="btn btn-light">{{asset.hp}}/{{asset.mhp}} hp</button>
+                  <button type="button" class="btn btn-light" @click="asset.hp=asset.hp+1">+</button>
+                  <button type="button" class="btn btn-light" @click="asset.hp=asset.hp-1" :disabled="asset.hp<1">-</button>
+                </div>
+                <button type="button" class="btn btn-light btn-sm" v-if="asset.data.atk.length>0" @click="action(aid,'Attack')" :disabled="asset.mayAttack.length==0">
+                  <span>Attack ({{asset.data.atk[0]}}v{{asset.data.atk[1]}}) {{asset.data.atk[2]}}</span>
+                  <span v-if="asset.data.counter.length>0">/ {{asset.data.counter}}</span>
+                </button>
+                <div class="btn-group btn-group-sm" role="group" v-if="asset.data.saves.length>0" v-cloak>
+                  <button type="button" class="btn btn-light">Saves</button>
+                  <button type="button" class="btn btn-light" v-for="s in asset.data.saves" @click="assetOvercome(s[1])" :disabled="!sector.trouble || s[0]!=sector.trouble.save">{{s[0]}} {{s[1]}}</button>
+                </div>
+                <button type="button" class="btn btn-light btn-sm" @click="action(aid,'Move')" v-if="asset.mayMove">Move &#10148;</button>
+                <div class="font-sm" v-if="asset.data.extras.length>0">{{asset.data.extras}}</div>
+                <!--Attack Select---------------------------------------------->
+                <div class="input-group" v-if="toAttack[0]==aid">
+                  <div class="input-group-append">
+                    <span class="input-group-text">Target</span>
+                  </div>
+                  <select class="custom-select" v-model="toAttack[1]">
+                    <option v-for="n in asset.mayAttack" :value="n[0]">{{n[1]}}</option>
+                  </select>
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-success" type="button" @click="attack()">Attack!</button>
+                  </div>
+                </div>
+                <!--Move Select---------------------------------------------->
+                <div class="input-group" v-if="toMove[0]==aid">
+                  <div class="input-group-append">
+                    <span class="input-group-text">Move to</span>
+                  </div>
+                  <select class="custom-select" v-model="toMove[1]">
+                    <option v-for="n in sector.neighbors" :value="n">{{n}}</option>
+                  </select>
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-success" type="button" @click="move()">Go</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -126,22 +142,22 @@
               <strong>Ruin: </strong>
               <span>{{sector.ruin.text}}</span>
             </div>
-            <div v-if="sector.lair" class="d-flex justify-content-between align-items-center">
+            <div v-if="sector.lair" class="border d-flex justify-content-between align-items-center">
               <div>
                 <strong>Lair: </strong>
                 <span>{{sector.lair.name}}</span>
               </div>
-              <button type="button" class="btn btn-warning" @click="lairCheck()">Lair Check</button>
+              <button type="button" class="btn btn-warning btn-sm" @click="lairCheck()">Lair Check</button>
             </div>
             <div v-if="sector.resource">
               <strong>Resource: </strong>
               <span>{{sector.resource.text}}</span>
             </div>
           </div>
-          <div class="m-2" v-if="R[0]>0" align="center">
+          <div class="m-2" v-if="R[0].length>0" align="center">
             <div class="btn-group" role="group">
-              <button type="button" class="btn" :class="[R[1] ? 'btn-success' : 'btn-warning']">Roll {{R[0]}}</button>
-              <button type="button" class="btn btn-secondary" @click="R=[0,false]">&#10008;</button>
+              <button type="button" class="btn" :class="[R[1] ? 'btn-success' : 'btn-warning']">{{R[0]}}</button>
+              <button type="button" class="btn btn-secondary" @click="R=['',false]">&#10008;</button>
             </div>
           </div>
         </div>

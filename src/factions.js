@@ -1,5 +1,5 @@
 const FACTIONS = [
-  {id:0, name:"Neutral"},
+  {id:0, name:"Neutral",stats: [3,3,3],color:"black"},
   {id:1, name:"Player", stats: [1,1,2], cred: 4, color:"royalblue"},
   {id:2, name:"Xiphir Empire", stats: [5,3,6], cred: 12, color: "darkred"},
   {id:3, name:"Star Hive", stats: [3,6,5], cred: 10, color:"limegreen"},
